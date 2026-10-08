@@ -1,0 +1,30 @@
+### 16.5 LSASS Access — Sysmon Event 10
+
+ATT&CK: `T1003.001`
+
+```yaml
+title: Suspicious Process Access To LSASS
+id: 6b9f9b25-1a47-45f0-8d8c-lsass-access
+status: experimental
+description: Detects process access to lsass.exe using Sysmon Event 10.
+author: Blue Team Lab
+date: 2026/10/08
+tags:
+  - attack.credential-access
+  - attack.t1003.001
+logsource:
+  product: windows
+  service: sysmon
+detection:
+  selection:
+    EventID: 10
+    TargetImage|endswith: '\\lsass.exe'
+  condition: selection
+falsepositives:
+  - EDR/AV
+  - Backup software
+  - Crash/debugging tools
+level: high
+```
+
+Production tuning theo `SourceImage`, signer, `GrantedAccess`, parent process và process tree.

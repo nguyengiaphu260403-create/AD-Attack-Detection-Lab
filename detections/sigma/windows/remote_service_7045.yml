@@ -1,0 +1,53 @@
+### 16.10 Remote Service Creation — Event 7045
+
+ATT&CK: `T1021.002`
+
+```yaml
+title: Remote Service Installation
+id: 45b6c6f2-8a61-4a92-91dd-remotesvc
+status: experimental
+description: Detects Windows service installation that can indicate remote service execution.
+author: Blue Team Lab
+date: 2026/10/08
+tags:
+  - attack.lateral-movement
+  - attack.t1021.002
+logsource:
+  product: windows
+  service: system
+detection:
+  selection:
+    EventID: 7045
+  condition: selection
+falsepositives:
+  - Software installation
+  - Windows updates
+  - Endpoint management
+level: medium
+```
+
+Nếu thu được Security Event 4697:
+
+```yaml
+title: New Service Installed
+id: 8b8a4f51-9c4c-4f9d-8c3a-service4697
+status: experimental
+description: Detects Windows Security Event 4697 for a newly installed service.
+author: Blue Team Lab
+date: 2026/10/08
+tags:
+  - attack.persistence
+  - attack.privilege-escalation
+logsource:
+  product: windows
+  service: security
+detection:
+  selection:
+    EventID: 4697
+  condition: selection
+falsepositives:
+  - Legitimate software deployment
+  - Windows updates
+  - Endpoint management
+level: medium
+```

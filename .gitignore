@@ -1,0 +1,18 @@
+# Secrets / local artifacts
+.env
+*.key
+*.pem
+*.pfx
+*.p12
+*.kirbi
+*.ccache
+*.dmp
+*.pcap
+*.evtx
+secrets/
+private/
+
+# OS/editor
+.DS_Store
+Thumbs.db
+.vscode/

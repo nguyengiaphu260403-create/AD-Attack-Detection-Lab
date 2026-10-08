@@ -1,0 +1,33 @@
+### 16.9 Pass-the-Hash — NTLM Network Logon
+
+ATT&CK: `T1550.002`
+
+```yaml
+title: Potential Pass The Hash Via NTLM Network Logon
+id: 1dbb9f83-8a22-4d21-9d2b-pth
+status: experimental
+description: Detects NTLM network logons that can be associated with Pass-the-Hash.
+author: Blue Team Lab
+date: 2026/10/08
+tags:
+  - attack.lateral-movement
+  - attack.t1550.002
+logsource:
+  product: windows
+  service: security
+detection:
+  selection:
+    EventID: 4624
+    LogonType: 3
+    AuthenticationPackageName: 'NTLM'
+    LogonProcessName: 'NtLmSsp'
+  condition: selection
+falsepositives:
+  - Legacy applications
+  - NAS/printers
+  - Workgroup systems
+  - Services without Kerberos
+level: low
+```
+
+4624/NTLM là hunting signal; không kết luận PtH chỉ từ event này.

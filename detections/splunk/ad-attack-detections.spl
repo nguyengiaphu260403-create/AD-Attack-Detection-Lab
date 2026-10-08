@@ -1,0 +1,147 @@
+index=main EventCode=4769 Failure_Code=0x0
+| where NOT match(Account_Name, "\$@")
+| where Service_Name!="krbtgt"
+| where NOT match(Service_Name, "\$$")
+| table _time host Account_Name Client_Address Client_Port Service_Name Ticket_Encryption_Type Ticket_Options Failure_Code
+| sort - _time
+
+/* ============================================================ */
+
+index=wineventlog EventCode=4624 Logon_Type=3
+| stats count values(src_ip) as source_ips by TargetUserName, dest, Authentication_Package_Name
+
+/* ============================================================ */
+
+index=wineventlog EventCode=4672
+| search TargetUserName IN ("svc_web","admin01")
+| stats count by TargetUserName, src_ip, dest
+
+/* ============================================================ */
+
+index=main
+sourcetype="WinEventLog:Microsoft-Windows-Sysmon/Operational"
+EventCode=1
+| where NOT match(Image, "(?i)\\\\lsass\.exe$")
+| where match(
+    CommandLine,
+    "(?i)(procdump(?:64)?\.exe.*(?:-ma|-mm).*lsass\.exe|procdump(?:64)?\.exe.*lsass\.exe.*\.dmp|comsvcs\.dll.*(?:MiniDump|MiniDumpW)|rundll32\.exe.*comsvcs\.dll.*(?:MiniDump|MiniDumpW)|MiniDumpWriteDump.*lsass)"
+)
+| table _time host User Image CommandLine ParentImage ProcessId
+| sort - _time
+
+/* ============================================================ */
+
+index=main
+sourcetype="WinEventLog:Microsoft-Windows-Sysmon/Operational"
+EventCode=11
+| where match(
+    TargetFilename,
+    "(?i)(lsass|sam|security|ntds)\.dmp$"
+)
+| eval detection="Credential Dump File Created"
+| table _time host User Image TargetFilename detection
+| sort - _time
+
+/* ============================================================ */
+
+index=main EventCode=1 Image="*\\procdump*.exe"
+| table _time Computer User Image CommandLine ParentImage
+
+/* ============================================================ */
+
+index=main EventCode=4662
+| search Properties_GUID="*1131f6aa-9c07-11d1-f79f-00c04fc2dcd2*"
+     OR Properties_GUID="*1131f6ad-9c07-11d1-f79f-00c04fc2dcd2*"
+     OR Properties_GUID="*89e95b76-444d-4c62-991a-0facbeda640c*"
+| where NOT match(Account_Name,"\\$$")
+| eval detection="Potential DCSync"
+| table _time ComputerName Account_Domain Account_Name Access_Mask Accesses Properties_GUID Object_Name detection Logon_ID
+| sort - _time
+
+/* ============================================================ */
+
+index=main EventCode=4624 Logon_Type=3
+Authentication_Package_Name="NTLM" Logon_Process_Name="NtLmSsp"
+| stats count by TargetUserName, SubjectUserSid, src_ip, dest
+
+/* ============================================================ */
+
+index=main EventCode=4768 Ticket_Encryption_Type=0x17
+| stats count by TargetUserName, IpAddress
+
+/* ============================================================ */
+
+index=main (EventCode=4768 OR EventCode=4769 OR EventCode=4624)
+| transaction TargetUserName maxspan=10m
+| search EventCode=4769 NOT EventCode=4768
+
+/* ============================================================ */
+
+index=wineventlog OR index=sysmon
+| eval signal=case(
+    EventCode=4769 AND Ticket_Encryption_Type="0x17", "kerberos_rc4",
+    EventCode=4624 AND Logon_Type=3 AND Authentication_Package_Name="NTLM", "ntlm_network",
+    EventCode=4672, "special_privilege",
+    EventCode=4662 AND (
+        like(Properties_GUID,"%1131f6aa-9c07-11d1-f79f-00c04fc2dcd2%")
+        OR like(Properties_GUID,"%1131f6ad-9c07-11d1-f79f-00c04fc2dcd2%")
+        OR like(Properties_GUID,"%89e95b76-444d-4c62-991a-0facbeda640c%")
+    ), "replication",
+    EventCode=10 AND TargetImage="*\\lsass.exe", "lsass_access",
+    true(), null())
+| search signal=*
+| eval entity=coalesce(TargetUserName, Account_Name, User, SubjectUserName)
+| eval source=coalesce(src_ip, Client_Address, IpAddress)
+| eval destination=coalesce(dest, ComputerName, host)
+| stats values(signal) as signals
+        dc(signal) as signal_count
+        values(source) as sources
+        values(destination) as destinations
+        values(entity) as users
+        min(_time) as first_seen
+        max(_time) as last_seen
+  by entity, bin(_time,15m)
+| eval severity=case(
+    signal_count>=4,"critical",
+    signal_count=3,"high",
+    signal_count=2,"medium",
+    true(),"low")
+| convert ctime(first_seen) ctime(last_seen)
+
+/* ============================================================ */
+
+index=main EventCode=4769 Failure_Code=0x0
+| where NOT match(Account_Name,"\\$$")
+| where Service_Name!="krbtgt"
+| stats dc(Service_Name) as distinct_spns values(Service_Name) as services
+  values(Client_Address) as sources by Account_Name, bin(_time,5m)
+| where distinct_spns >= 5
+
+/* ============================================================ */
+
+index=wineventlog OR index=sysmon
+| eval signal=case(
+    EventCode=4769 AND Ticket_Encryption_Type="0x17","kerberos_rc4",
+    EventCode=4624 AND Logon_Type=3 AND Authentication_Package_Name="NTLM","ntlm_network",
+    EventCode=4672,"special_privilege",
+    EventCode=4662 AND (
+      like(Properties_GUID,"%1131f6aa-9c07-11d1-f79f-00c04fc2dcd2%")
+      OR like(Properties_GUID,"%1131f6ad-9c07-11d1-f79f-00c04fc2dcd2%")
+      OR like(Properties_GUID,"%89e95b76-444d-4c62-991a-0facbeda640c%")
+    ),"replication",
+    EventCode=10 AND TargetImage="*\\lsass.exe","lsass_access",
+    EventCode=7045,"service_install",
+    true(),null())
+| search signal=*
+| eval entity=coalesce(TargetUserName,Account_Name,User,SubjectUserName)
+| eval source=coalesce(src_ip,Client_Address,IpAddress)
+| eval destination=coalesce(dest,ComputerName,host)
+| stats values(signal) as signals dc(signal) as signal_count
+        values(source) as sources values(destination) as destinations
+        values(entity) as users
+  by entity,bin(_time,15m)
+| eval severity=case(
+    signal_count>=4,"critical",
+    signal_count=3,"high",
+    signal_count=2,"medium",
+    true(),"low")

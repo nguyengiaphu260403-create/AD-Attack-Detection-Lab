@@ -1,0 +1,40 @@
+### 16.2 Kerberoasting — TGS Burst Hunting
+
+```yaml
+title: Potential Kerberoasting - Multiple TGS Requests
+id: 8d9f2f11-7a1c-4c3b-91a2-kerberoast-burst
+status: experimental
+description: Base event for correlating multiple TGS requests from one account/source.
+author: Blue Team Lab
+date: 2026/10/08
+tags:
+  - attack.credential-access
+  - attack.t1558.003
+logsource:
+  product: windows
+  service: security
+detection:
+  selection:
+    EventID: 4769
+    Status: '0x0'
+  filter_machine:
+    TargetUserName|endswith: '$'
+  filter_krbtgt:
+    ServiceName: 'krbtgt'
+  condition: selection and not 1 of filter_*
+falsepositives:
+  - Normal application activity
+  - Administrative tooling
+level: low
+```
+
+Splunk correlation:
+
+```spl
+index=main EventCode=4769 Failure_Code=0x0
+| where NOT match(Account_Name,"\\$$")
+| where Service_Name!="krbtgt"
+| stats dc(Service_Name) as distinct_spns values(Service_Name) as services
+  values(Client_Address) as sources by Account_Name, bin(_time,5m)
+| where distinct_spns >= 5
+```

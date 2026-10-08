@@ -1,0 +1,31 @@
+### 16.6 ProcDump LSASS — Sysmon Event 1
+
+```yaml
+title: ProcDump LSASS Memory Dump
+id: 9c9b1c32-53b0-4b9a-a8fd-procdump-lsass
+status: experimental
+description: Detects ProcDump being used to create a full dump of lsass.exe.
+author: Blue Team Lab
+date: 2026/10/08
+tags:
+  - attack.credential-access
+  - attack.t1003.001
+logsource:
+  product: windows
+  service: sysmon
+detection:
+  selection_image:
+    EventID: 1
+    Image|endswith:
+      - '\\procdump.exe'
+      - '\\procdump64.exe'
+  selection_command:
+    CommandLine|contains|all:
+      - 'lsass.exe'
+      - '-ma'
+  condition: selection_image and selection_command
+falsepositives:
+  - Authorized forensic acquisition
+  - Memory-dump troubleshooting
+level: high
+```

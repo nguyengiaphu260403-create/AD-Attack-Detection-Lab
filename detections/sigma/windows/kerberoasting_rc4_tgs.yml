@@ -1,0 +1,34 @@
+### 16.1 Kerberoasting — RC4 TGS Request
+
+ATT&CK: `T1558.003`
+
+```yaml
+title: Potential Kerberoasting - RC4 Service Ticket Request
+id: 5e6c2d91-5b76-4f8f-9b5a-kerberoast
+status: experimental
+description: Detects RC4-HMAC Kerberos service ticket requests. RC4 is not malicious by itself.
+author: Blue Team Lab
+date: 2026/10/08
+tags:
+  - attack.credential-access
+  - attack.t1558.003
+logsource:
+  product: windows
+  service: security
+detection:
+  selection:
+    EventID: 4769
+    TicketEncryptionType: '0x17'
+  filter_machine:
+    TargetUserName|endswith: '$'
+  filter_krbtgt:
+    ServiceName: 'krbtgt'
+  condition: selection and not 1 of filter_*
+falsepositives:
+  - Legacy applications
+  - Old trust relationships
+  - Systems without AES support
+level: medium
+```
+
+Tuning: baseline `requesting account + source + ServiceName + encryption type`. Tăng severity khi có nhiều SPN khác nhau trong vài phút hoặc source host mới.
